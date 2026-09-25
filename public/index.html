@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MirrorCode — The Style Profiler</title>
+<meta name="description" content="MirrorCode reads a sample of your code and returns the fingerprint of how you write — naming, formatting, structure. Phase one of a tool that writes code in your voice." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #f7f2e9;
+    --paper-deep: #f1e9db;
+    --card: #fdfaf3;
+    --ink: #262019;
+    --ink-soft: #4a4237;
+    --muted: #8a7d6a;
+    --faint: #b3a78f;
+    --line: #e0d5c2;
+    --line-strong: #cbbfa6;
+    --terra: #bc4b28;
+    --terra-dark: #a03d1e;
+    --gold: #b8862f;
+    --green: #5f7a4e;
+    --danger: #b3392b;
+    --field: #fbf7ee;
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Hanken Grotesk', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background-color: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* fine paper grain over everything */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    pointer-events: none;
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.04'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  ::selection { background: #e9c8a4; color: var(--ink); }
+
+  a { color: inherit; }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  /* ── masthead ─────────────────────────────────────────── */
+  .masthead {
+    border-bottom: 1.5px solid var(--ink);
+    background: var(--paper);
+  }
+  .masthead-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 0;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .mark { width: 34px; height: 34px; flex-shrink: 0; }
+  .wordmark {
+    font-family: var(--serif);
+    font-size: 1.45rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1;
+  }
+  .wordmark em { font-style: italic; color: var(--terra); }
+  nav.site {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  nav.site a { text-decoration: none; }
+  nav.site a:hover { color: var(--terra); }
+  .phase-pill {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--terra);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 5px 13px;
+    background: var(--card);
+  }
+
+  /* ── hero ─────────────────────────────────────────────── */
+  .hero {
+    padding: 88px 0 64px;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--terra);
+    margin-bottom: 28px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 42px;
+    height: 1.5px;
+    background: var(--terra);
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(2.6rem, 6.2vw, 4.4rem);
+    line-height: 1.04;
+    letter-spacing: -0.022em;
+    margin: 0 0 28px;
+    max-width: 16ch;
+    font-variation-settings: "opsz" 144;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--terra);
+    font-weight: 500;
+  }
+  .hero p.lede {
+    font-size: 1.16rem;
+    line-height: 1.62;
+    color: var(--ink-soft);
+    max-width: 56ch;
+    margin: 0 0 14px;
+  }
+  .hero p.lede strong { color: var(--ink); font-weight: 600; }
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 40px;
+    border-top: 1px solid var(--line);
+  }
+  .meta-strip > div {
+    padding: 20px 28px 0 0;
+    margin-right: 32px;
+  }
+  .meta-strip dt {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .meta-strip dd {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 1.12rem;
+    font-weight: 500;
+  }
+
+  /* ── sections ─────────────────────────────────────────── */
+  section { scroll-margin-top: 90px; }
+
+  .section-head {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 40px;
+    align-items: end;
+    margin-bottom: 36px;
+  }
+  .section-head .kicker {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--terra);
+    margin-bottom: 14px;
+  }
+  .section-head h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(1.9rem, 3.6vw, 2.7rem);
+    line-height: 1.08;
+    letter-spacing: -0.018em;
+    margin: 0;
+  }
+  .section-head p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    line-height: 1.6;
+    padding-bottom: 6px;
+  }
+
+  .profiler { padding: 76px 0 84px; }
+
+  /* ── workspace ────────────────────────────────────────── */
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    box-shadow:
+      0 1px 2px rgba(70, 52, 26, 0.05),
+      0 24px 60px -30px rgba(70, 52, 26, 0.28);
+    overflow: hidden;
+  }
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 26px 28px 28px;
+  }
+  .pane + .pane { border-left: 1px solid var(--line); }
+
+  .pane-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .pane-label {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .pane-label .num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--terra);
+    letter-spacing: 0;
+  }
+  .counter {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--faint);
+    letter-spacing: 0.04em;
+  }
+
+  textarea {
+    width: 100%;
+    height: 340px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 18px;
+    background: var(--field);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    resize: vertical;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  textarea::placeholder { color: #b0a68e; font-style: italic; }
+  textarea:hover { border-color: var(--line-strong); }
+  textarea:focus {
+    outline: none;
+    border-color: var(--terra);
+    box-shadow: 0 0 0 3px rgba(188, 75, 40, 0.12);
+  }
+
+  .pane-actions {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 18px;
+  }
+
+  button#analyzeBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 26px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background-color 0.16s ease, transform 0.08s ease;
+  }
+  button#analyzeBtn .arrow {
+    transition: transform 0.18s ease;
+    font-family: var(--serif);
+    font-size: 1.05rem;
+  }
+  button#analyzeBtn:hover:not(:disabled) { background: var(--terra); }
+  button#analyzeBtn:hover:not(:disabled) .arrow { transform: translateX(3px); }
+  button#analyzeBtn:active:not(:disabled) { transform: translateY(1px); }
+  button#analyzeBtn:disabled {
+    background: var(--paper-deep);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .load-sample {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line-strong);
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .load-sample:hover { color: var(--terra); border-color: var(--terra); }
+
+  .meta {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    min-height: 1.2em;
+  }
+  .meta .ok { color: var(--green); }
+
+  .output-shell {
+    position: relative;
+    flex: 1;
+    display: flex;
+  }
+
+  pre#output {
+    flex: 1;
+    height: 340px;
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    padding: 18px;
+    border-radius: 3px;
+    overflow: auto;
+    white-space: pre-wrap;
+    border: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  pre#output.empty { color: var(--muted); font-style: italic; }
+  pre#output.error { color: var(--danger); }
+  pre#output.loading {
+    color: var(--terra);
+    font-style: italic;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+
+  /* JSON syntax colors — warm and ink-based, no neon */
+  .tok-key { color: var(--terra); }
+  .tok-string { color: var(--green); }
+  .tok-num { color: var(--gold); }
+  .tok-bool { color: var(--gold); font-weight: 500; }
+  .tok-punct { color: var(--faint); }
+
+  .copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--card);
+    border: 1px solid var(--line-strong);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.16s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .output-shell:hover .copy-btn,
+  .copy-btn:focus-visible { opacity: 1; }
+  .copy-btn:hover { color: var(--terra); border-color: var(--terra); }
+
+  .dots::after {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    text-align: left;
+    animation: dots 1.1s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0% { content: ""; }
+    25% { content: "."; }
+    50% { content: ".."; }
+    75%, 100% { content: "..."; }
+  }
+
+  /* ── roadmap ──────────────────────────────────────────── */
+  .roadmap {
+    padding: 80px 0 88px;
+    border-top: 1px solid var(--line);
+    background: var(--paper-deep);
+  }
+  .phases {
+    border-top: 1.5px solid var(--ink);
+  }
+  .phase-row {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    gap: 28px;
+    align-items: baseline;
+    padding: 26px 8px;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .phase-row .ph {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+  .phase-row h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 1.35rem;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .phase-row h3 em { font-style: italic; }
+  .phase-row p { margin: 0; color: var(--ink-soft); font-size: 0.94rem; }
+  .status {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--muted);
+    background: var(--card);
+  }
+  .status.live {
+    color: #fff;
+    background: var(--terra);
+    border-color: var(--terra);
+  }
+
+  /* ── footer ───────────────────────────────────────────── */
+  footer {
+    border-top: 1.5px solid var(--ink);
+    padding: 44px 0 48px;
+  }
+  .footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  footer .brand-note {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+  }
+  footer .brand-note em { font-style: italic; color: var(--terra); }
+  footer .foot-links {
+    display: flex;
+    gap: 28px;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  footer .foot-links a { text-decoration: none; }
+  footer .foot-links a:hover { color: var(--terra); }
+  footer .colophon {
+    width: 100%;
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    color: var(--faint);
+  }
+
+  /* ── reveal on scroll ─────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    html { scroll-behavior: auto; }
+  }
+
+  /* ── responsive ───────────────────────────────────────── */
+  @media (max-width: 860px) {
+    .wrap { padding: 0 22px; }
+    nav.site { display: none; }
+    .hero { padding: 60px 0 48px; }
+    .workspace { grid-template-columns: 1fr; }
+    .pane + .pane { border-left: none; border-top: 1px solid var(--line); }
+    .section-head { grid-template-columns: 1fr; gap: 14px; }
+    .phase-row { grid-template-columns: 1fr; gap: 8px; }
+    .phase-row .status { justify-self: start; margin-top: 6px; }
+    textarea, pre#output { height: 280px; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ── masthead ─────────────────────────────────────── -->
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <a class="brand" href="#top">
+        <svg class="mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g stroke="#262019" stroke-width="2.6" stroke-linecap="round">
+            <path d="M20 6 L20 34" />
+            <path d="M8 13 L32 27" />
+            <path d="M32 13 L8 27" />
+          </g>
+          <circle cx="20" cy="20" r="3.4" fill="#bc4b28" stroke="none" />
+        </svg>
+        <span class="wordmark">Mirror<em>Code</em></span>
+      </a>
+      <nav class="site">
+        <a href="#profiler">The Profiler</a>
+        <a href="#roadmap">What's Next</a>
+      </nav>
+      <span class="phase-pill">Phase 01 — Profiler</span>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ── hero ────────────────────────────────────────── -->
+    <section class="hero">
+      <div class="wrap">
+        <div class="eyebrow">A style mirror for developers</div>
+        <h1>Every developer has a <em>handwriting.</em> Now you can read yours.</h1>
+        <p class="lede">
+          Paste a sample of real code and MirrorCode reads it back as a <strong>style fingerprint</strong> —
+          how you name things, how you format them, how you structure a program.
+          It's the first step toward code completion that actually sounds like <em>you</em>.
+        </p>
+        <dl class="meta-strip reveal">
+          <div>
+            <dt>Paste</dt>
+            <dd>Twenty lines or more</dd>
+          </div>
+          <div>
+            <dt>Receive</dt>
+            <dd>A structured fingerprint</dd>
+          </div>
+          <div>
+            <dt>Built on</dt>
+            <dd>Groq · Gemini · OpenRouter</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ── profiler ────────────────────────────────────── -->
+    <section class="profiler" id="profiler">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">The Profiler</div>
+            <h2>Hand it your code.<br />Get back your <em style="font-family:var(--serif);font-style:italic;color:var(--terra)">habits.</em></h2>
+          </div>
+          <p>
+            Drop in a file you've lived with for a while — the longer the sample, the sharper
+            the reading. Nothing is stored; the analysis runs and disappears.
+          </p>
+        </div>
+
+        <div class="workspace reveal">
+          <section class="pane pane-input">
+            <div class="pane-head">
+              <div class="pane-label"><span class="num">i.</span> Your code</div>
+              <div class="counter" id="counter">0 lines</div>
+            </div>
+            <textarea id="code" spellcheck="false" placeholder="Paste a real sample here — your own code, not a library's. About twenty lines gives the profiler enough to work with…"></textarea>
+            <div class="pane-actions">
+              <button id="analyzeBtn" type="button">
+                <span class="btn-label">Analyze style</span>
+                <span class="arrow">→</span>
+              </button>
+              <button class="load-sample" id="sampleBtn" type="button">try a sample</button>
+            </div>
+            <div class="meta" id="meta"></div>
+          </section>
+
+          <section class="pane pane-output">
+            <div class="pane-head">
+              <div class="pane-label"><span class="num">ii.</span> Your fingerprint</div>
+            </div>
+            <div class="output-shell">
+              <pre id="output" class="empty">Nothing analyzed yet. Paste code on the left, and your fingerprint appears here.</pre>
+              <button class="copy-btn" id="copyBtn" type="button">Copy</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── roadmap ─────────────────────────────────────── -->
+    <section class="roadmap" id="roadmap">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <div class="kicker">What's Next</div>
+            <h2>From reading your style<br />to <em style="font-family:var(--serif);font-style:italic;color:var(--terra)">writing</em> in it.</h2>
+          </div>
+          <p>
+            The profiler is the foundation. Each later phase leans on the fingerprint it
+            produces, so the tool stops sounding like a template and starts sounding like you.
+          </p>
+        </div>
+
+        <div class="phases reveal">
+          <div class="phase-row">
+            <div class="ph">PHASE 01</div>
+            <div>
+              <h3>The <em>Profiler</em></h3>
+              <p>Read a code sample, return a structured fingerprint of naming, formatting and structure.</p>
+            </div>
+            <span class="status live">Live now</span>
+          </div>
+          <div class="phase-row">
+            <div class="ph">PHASE 02</div>
+            <div>
+              <h3>Style-aware <em>generation</em></h3>
+              <p>Take a fingerprint plus a task — "build a calculator" — and write new code that matches it.</p>
+            </div>
+            <span class="status">In progress</span>
+          </div>
+          <div class="phase-row">
+            <div class="ph">PHASE 03</div>
+            <div>
+              <h3>In-file <em>completion</em></h3>
+              <p>Paste a half-finished file and have it completed in the voice the file already speaks in.</p>
+            </div>
+            <span class="status">Planned</span>
+          </div>
+          <div class="phase-row">
+            <div class="ph">PHASE 04</div>
+            <div>
+              <h3>Repo <em>profiling</em></h3>
+              <p>Point MirrorCode at a GitHub repository and profile your whole body of work at once.</p>
+            </div>
+            <span class="status">Planned</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── footer ─────────────────────────────────────────── -->
+  <footer>
+    <div class="wrap footer-inner">
+      <div class="brand-note">Mirror<em>Code</em> — code that writes like you do.</div>
+      <nav class="foot-links">
+        <a href="#profiler">Profiler</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="#top">Back to top ↑</a>
+      </nav>
+      <div class="colophon">Set in Fraunces, Hanken Grotesk &amp; IBM Plex Mono. Phase 01 · Local analysis, nothing stored.</div>
+    </div>
+  </footer>
+
+  <script>
+    const btn = document.getElementById('analyzeBtn');
+    const btnLabel = btn.querySelector('.btn-label');
+    const output = document.getElementById('output');
+    const meta = document.getElementById('meta');
+    const copyBtn = document.getElementById('copyBtn');
+    const codeEl = document.getElementById('code');
+    const counter = document.getElementById('counter');
+    const sampleBtn = document.getElementById('sampleBtn');
+    let lastResultText = '';
+
+    function setOutputState(state) {
+      output.classList.remove('empty', 'error');
+      output.classList.add(state);
+    }
+
+    // line counter for the input pane
+    function updateCounter() {
+      const lines = codeEl.value ? codeEl.value.split('\n').length : 0;
+      counter.textContent = lines + (lines === 1 ? ' line' : ' lines');
+    }
+    codeEl.addEventListener('input', updateCounter);
+
+    // warm, ink-based JSON syntax highlighting
+    function highlightJSON(json) {
+      const escaped = json
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      return escaped.replace(
+        /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+        (m, str, colon, bool, num) => {
+          if (str !== undefined) {
+            return colon
+              ? `<span class="tok-key">${str}</span><span class="tok-punct">${colon}</span>`
+              : `<span class="tok-string">${str}</span>`;
+          }
+          if (bool !== undefined) return `<span class="tok-bool">${bool}</span>`;
+          if (num !== undefined) return `<span class="tok-num">${num}</span>`;
+          return m;
+        }
+      );
+    }
+
+    btn.addEventListener('click', async () => {
+      const code = codeEl.value;
+      if (!code.trim()) {
+        codeEl.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.classList.add('dots');
+      btnLabel.textContent = 'Analyzing';
+      output.classList.remove('empty', 'error');
+      output.classList.add('loading');
+      output.textContent = 'Reading your style — naming, formatting, structure…';
+      meta.textContent = '';
+      lastResultText = '';
+
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+
+        lastResultText = JSON.stringify(data.profile, null, 2);
+        output.classList.remove('loading', 'empty', 'error');
+        output.innerHTML = highlightJSON(lastResultText);
+        meta.innerHTML = `<span class="ok">✓</span> Fingerprint complete — read via ${data.providerUsed}. Nothing was stored.`;
+      } catch (err) {
+        output.textContent = 'Could not complete the analysis — ' + err.message;
+        output.classList.remove('loading', 'empty');
+        output.classList.add('error');
+        meta.textContent = '';
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('dots');
+        btnLabel.textContent = 'Analyze style';
+      }
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      if (!lastResultText) return;
+      try {
+        await navigator.clipboard.writeText(lastResultText);
+        copyBtn.textContent = 'Copied ✓';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1600);
+      } catch {
+        copyBtn.textContent = 'Failed';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1600);
+      }
+    });
+
+    // a small, real-feeling sample so the tool can be tried immediately
+    const SAMPLE = `// Debounce a function call to the trailing edge.
+function debounce(fn, wait = 300) {
+  let timer = null;
+  return function (...args) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn.apply(this, args);
+    }, wait);
+  };
+}
+
+const isReady = (user) => Boolean(user && user.active);
+
+async function loadProfile(userId) {
+  try {
+    const res = await fetch('/api/users/' + userId);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('loadProfile failed:', err);
+    return null;
+  }
+}
+
+const users = [
+  { id: 1, active: true, name: 'Ada' },
+  { id: 2, active: false, name: 'Linus' },
+].filter((u) => isReady(u));`;
+
+    sampleBtn.addEventListener('click', () => {
+      codeEl.value = SAMPLE;
+      updateCounter();
+      codeEl.focus();
+      meta.textContent = 'Sample loaded — press Analyze style.';
+    });
+
+    // gentle reveal-on-scroll
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('in');
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+    // Cmd/Ctrl+Enter to analyze
+    codeEl.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        btn.click();
+      }
+    });
+  </script>
+</body>
+</html>
